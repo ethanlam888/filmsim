@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 const FILM_STOCKS = [
   {
@@ -124,16 +124,62 @@ function FilmCard({ stock, imageUrl, selected, onClick }) {
   );
 }
 
-function Modal({ stock, imageUrl, onClose }) {
+function Modal({ stocks, currentIndex, imageUrl, onClose, onNavigate }) {
+  const stock = stocks[currentIndex];
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "ArrowRight") onNavigate((currentIndex + 1) % stocks.length);
+      else if (e.key === "ArrowLeft") onNavigate((currentIndex - 1 + stocks.length) % stocks.length);
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [currentIndex, stocks.length, onNavigate, onClose]);
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 40) {
+      onNavigate(dx < 0
+        ? (currentIndex + 1) % stocks.length
+        : (currentIndex - 1 + stocks.length) % stocks.length);
+    }
+    touchStartX.current = null;
+  };
+
+  const navBtn = (label, onClick) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        position: "absolute", top: "50%", transform: "translateY(-50%)",
+        background: "rgba(0,0,0,0.45)", border: "none", borderRadius: "50%",
+        color: "#fff", width: 40, height: 40, fontSize: 20, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        backdropFilter: "blur(4px)", flexShrink: 0,
+        ...(label === "‹" ? { left: -20 } : { right: -20 }),
+      }}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 100,
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20,
       }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 700 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 700, position: "relative" }}>
+        {navBtn("‹", () => onNavigate((currentIndex - 1 + stocks.length) % stocks.length))}
+        {navBtn("›", () => onNavigate((currentIndex + 1) % stocks.length))}
+
         <div style={{ borderRadius: 10, overflow: "hidden", position: "relative" }}>
           <img
             src={imageUrl}
@@ -144,17 +190,38 @@ function Modal({ stock, imageUrl, onClose }) {
             <div style={{ position: "absolute", inset: 0, background: stock.tint, mixBlendMode: "multiply", pointerEvents: "none" }} />
           )}
         </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
           <div>
             <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#fff" }}>{stock.name}</p>
             <p style={{ margin: "2px 0 0", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{stock.description}</p>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, color: "#fff", padding: "7px 16px", fontSize: 13, cursor: "pointer" }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
+              {currentIndex + 1} / {stocks.length}
+            </span>
+            <button
+              onClick={onClose}
+              style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, color: "#fff", padding: "7px 16px", fontSize: 13, cursor: "pointer" }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Dot indicators */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 12 }}>
+          {stocks.map((s, i) => (
+            <div
+              key={s.id}
+              onClick={(e) => { e.stopPropagation(); onNavigate(i); }}
+              style={{
+                width: i === currentIndex ? 16 : 6, height: 6, borderRadius: 3,
+                background: i === currentIndex ? "#fff" : "rgba(255,255,255,0.3)",
+                cursor: "pointer", transition: "all 0.2s",
+              }}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -258,7 +325,13 @@ export default function App() {
 
       {/* Modal */}
       {selected && imageUrl && selectedStock && (
-        <Modal stock={selectedStock} imageUrl={imageUrl} onClose={() => setSelected(null)} />
+        <Modal
+          stocks={FILM_STOCKS}
+          currentIndex={FILM_STOCKS.findIndex((s) => s.id === selected)}
+          imageUrl={imageUrl}
+          onClose={() => setSelected(null)}
+          onNavigate={(i) => setSelected(FILM_STOCKS[i].id)}
+        />
       )}
     </div>
   );
