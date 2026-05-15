@@ -124,6 +124,29 @@ function FilmCard({ stock, imageUrl, selected, onClick }) {
   );
 }
 
+function downloadFiltered(imageUrl, stock) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.filter = stock.css;
+    ctx.drawImage(img, 0, 0);
+    if (stock.tint) {
+      ctx.filter = "none";
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = stock.tint;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `${stock.id}.png`;
+    a.click();
+  };
+  img.src = imageUrl;
+}
+
 function Modal({ stocks, currentIndex, imageUrl, onClose, onNavigate }) {
   const stock = stocks[currentIndex];
   const touchStartX = useRef(null);
@@ -200,6 +223,12 @@ function Modal({ stocks, currentIndex, imageUrl, onClose, onNavigate }) {
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
               {currentIndex + 1} / {stocks.length}
             </span>
+            <button
+              onClick={() => downloadFiltered(imageUrl, stock)}
+              style={{ background: "#185FA5", border: "none", borderRadius: 6, color: "#fff", padding: "7px 16px", fontSize: 13, cursor: "pointer" }}
+            >
+              Download
+            </button>
             <button
               onClick={onClose}
               style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, color: "#fff", padding: "7px 16px", fontSize: 13, cursor: "pointer" }}
