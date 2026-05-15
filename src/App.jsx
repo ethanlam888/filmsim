@@ -258,25 +258,48 @@ function Modal({ stocks, currentIndex, imageUrl, onClose, onNavigate }) {
 }
 
 export default function App() {
-  const [imageUrl, setImageUrl] = useState(null);
+  const [images, setImages] = useState([]);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [selected, setSelected] = useState(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef();
+  const addInputRef = useRef();
+
+  const readFiles = useCallback((files) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!imageFiles.length) return;
+    let loaded = 0;
+    const results = [];
+    imageFiles.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        results[i] = { url: e.target.result, name: file.name };
+        loaded++;
+        if (loaded === imageFiles.length) {
+          setImages((prev) => {
+            const next = [...prev, ...results];
+            setActiveIdx(prev.length === 0 ? 0 : prev.length);
+            return next;
+          });
+          setSelected(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   const handleFile = useCallback((file) => {
     if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = (e) => setImageUrl(e.target.result);
-    reader.readAsDataURL(file);
-    setSelected(null);
-  }, []);
+    readFiles([file]);
+  }, [readFiles]);
 
   const onDrop = (e) => {
     e.preventDefault();
     setDragging(false);
-    handleFile(e.dataTransfer.files[0]);
+    readFiles(e.dataTransfer.files);
   };
 
+  const imageUrl = images[activeIdx]?.url ?? null;
   const selectedStock = FILM_STOCKS.find((s) => s.id === selected);
 
   return (
@@ -299,7 +322,7 @@ export default function App() {
         </div>
 
         {/* Upload zone */}
-        {!imageUrl ? (
+        {images.length === 0 ? (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -316,25 +339,58 @@ export default function App() {
             }}
           >
             <div style={{ fontSize: 40, marginBottom: 12 }}>📷</div>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#111" }}>Drop a photo here</p>
-            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#aaa" }}>or tap to browse — JPG, PNG, WebP</p>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#111" }}>Drop photos here</p>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#aaa" }}>or tap to browse — JPG, PNG, WebP · multiple files supported</p>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => readFiles(e.target.files)} />
           </div>
         ) : (
           <>
-            {/* Change photo button */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ margin: 0, fontSize: 12, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
-                {FILM_STOCKS.length} simulations — tap to expand
-              </p>
+            {/* Image strip + actions */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
+              {images.map((img, i) => (
+                <div
+                  key={i}
+                  onClick={() => { setActiveIdx(i); setSelected(null); }}
+                  style={{
+                    flexShrink: 0, width: 64, height: 44, borderRadius: 7, overflow: "hidden",
+                    border: i === activeIdx ? "2px solid #185FA5" : "2px solid transparent",
+                    cursor: "pointer", boxShadow: i === activeIdx ? "0 0 0 2px rgba(24,95,165,0.2)" : "none",
+                    transition: "border 0.15s",
+                    position: "relative",
+                  }}
+                >
+                  <img src={img.url} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                </div>
+              ))}
               <button
-                onClick={() => fileInputRef.current.click()}
-                style={{ fontSize: 12, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: "1px solid #ddd", background: "#fff", color: "#555" }}
+                onClick={() => addInputRef.current.click()}
+                style={{
+                  flexShrink: 0, width: 44, height: 44, borderRadius: 7,
+                  border: "1.5px dashed #ccc", background: "#fff", color: "#aaa",
+                  fontSize: 22, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                }}
               >
-                Change photo
+                +
               </button>
-              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
+              <input ref={addInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => readFiles(e.target.files)} />
+
+              <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "#aaa", alignSelf: "center" }}>
+                  {activeIdx + 1} of {images.length}
+                </span>
+                <button
+                  onClick={() => { setImages([]); setActiveIdx(0); setSelected(null); }}
+                  style={{ fontSize: 12, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: "1px solid #ddd", background: "#fff", color: "#555" }}
+                >
+                  Clear all
+                </button>
+              </div>
             </div>
+
+            {/* Film grid subtitle */}
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
+              {FILM_STOCKS.length} simulations — tap to expand
+            </p>
 
             {/* Film grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 14 }}>
